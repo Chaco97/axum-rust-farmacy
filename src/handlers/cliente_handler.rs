@@ -1,9 +1,13 @@
+pub use axum_macros::{debug_handler};
+
 use axum::{
     extract::{State, Path},
     http::StatusCode,
-    Json,
+    Json, 
+    
 };
-use crate::{state::app_state::AppState, models::cliente::Cliente};
+
+use crate::{models::cliente::{Cliente, NewCliente}, state::app_state::AppState};
 
 
 pub async fn get_clientes(
@@ -41,6 +45,31 @@ pub async fn get_clientes(
         Some(c) => Ok(Json(c)),
         None => Err(StatusCode::NOT_FOUND),
     }
+}
+
+#[debug_handler]
+pub async fn create_cliente(
+    State(state): State<AppState>,
+    Json(payload): Json<NewCliente>,
+) -> Result<(StatusCode, Json<Cliente>), StatusCode> {
+
+
+    let cliente = sqlx::query_as!(
+        Cliente,
+        "INSERT INTO cliente (nombre, cedula, telefono) VALUES ($1, $2, $3) 
+         RETURNING id, nombre, cedula, telefono",
+        payload.nombre,
+        payload.cedula,
+        payload.telefono
+    )
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| {
+        eprintln!("DB error: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    Ok((StatusCode::CREATED, Json(cliente)))
 }
 
 
